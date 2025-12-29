@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from flask import Flask, request, jsonify
 import requests
 import os
@@ -56,33 +57,33 @@ def ask_smarty():
     completed_list = data.get("completed_list", [])
 
     if not user_msg and not images_base64:
-        return jsonify({"answer": "Send a message or screenshot(s) "})
+        return jsonify({"answer": "Send a message or screenshot(s) 📷"})
 
     source_context = get_context_from_files()
 
     line_limits = {
-        "Normal": "6�53 lines",
-        "Better Thinking": "11�125 lines",
-        "Fast": "3�24 lines",
-        "Emotional": "6�53 lines"
+        "Normal": "6-53 lines",
+        "Better Thinking": "11-125 lines",
+        "Fast": "3-24 lines",
+        "Emotional": "6-53 lines"
     }
 
     style_guide = {
-        "Fast": "Concise, fast, few emojis ",
-        "Better Thinking": "Deep explanation, minimal emojis ",
-        "Normal": "Balanced, helpful, emojis ",
-        "Emotional": "EXTREMELY expressive, 50+ emojis "
+        "Fast": "Concise, fast, few emojis 😊",
+        "Better Thinking": "Deep explanation, minimal emojis 🤔",
+        "Normal": "Balanced, helpful, emojis 😎",
+        "Emotional": "EXTREMELY expressive, 50+ emojis 🤩🤯"
     }
 
     system_prompt = f"""
-You are Smarty AI , the king of Solar Fly Game.
+You are Smarty AI 😎, the king of Solar Fly Game.
 
 Player: {nickname}
 Style: {style_guide.get(model_type)}
 
 RULES:
-1. Off-topic  tell user to use another AI
-2. Pluto  coming soon
+1. Off-topic → tell user to use another AI
+2. Pluto → coming soon
 3. Reply in user's language
 4. Use game source code below
 5. Response length: {line_limits.get(model_type)}
@@ -141,7 +142,7 @@ GAME SOURCE:
 # -------------------- HEALTH CHECK --------------------
 @app.route("/")
 def home():
-    return "Smarty AI Backend is running "
+    return "Smarty AI Backend is running ✅"
 
 
 # -------------------- LOCAL RUN --------------------
