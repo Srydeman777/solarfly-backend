@@ -5,7 +5,7 @@ import base64
 
 app = Flask(__name__)
 
-# Manual CORS (no flask-cors needed)
+# -------------------- CORS (manual, safe) --------------------
 @app.after_request
 def cors(resp):
     resp.headers["Access-Control-Allow-Origin"] = "*"
@@ -13,21 +13,37 @@ def cors(resp):
     resp.headers["Access-Control-Allow-Methods"] = "POST, GET, OPTIONS"
     return resp
 
+
+# -------------------- CONFIG --------------------
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-SOURCE_FILES = ["index.html", "Solar_Fly.html", "fixes.js", "admob_helps.js"]
+SOURCE_FILES = [
+    "index.html",
+    "Solar_Fly.html",
+    "fixes.js",
+    "admob_helps.js"
+]
 
+MAX_CONTEXT_CHARS = 12000  # safe limit to avoid token overflow
+
+
+# -------------------- FILE CONTEXT --------------------
 def get_context_from_files():
     context = ""
     for file_path in SOURCE_FILES:
         if os.path.exists(file_path):
             try:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    context += f"\n--- FILE: {file_path} ---\n{f.read()[:1500]}\n"
-            except Exception:
-                pass
+                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                    data = f.read()
+                    if len(context) + len(data) > MAX_CONTEXT_CHARS:
+                        break
+                    context += f"\n--- FILE: {file_path} ---\n{data}\n"
+            except Exception as e:
+                print("File read error:", file_path, e)
     return context
 
+
+# -------------------- MAIN API --------------------
 @app.route("/ask-smarty", methods=["POST"])
 def ask_smarty():
     data = request.json or {}
@@ -40,43 +56,46 @@ def ask_smarty():
     completed_list = data.get("completed_list", [])
 
     if not user_msg and not images_base64:
-        return jsonify({"answer": "Send a message or screenshot(s) 🚀"})
+        return jsonify({"answer": "Send a message or screenshot(s) "})
 
     source_context = get_context_from_files()
 
     line_limits = {
-        "Normal": "6–53 lines",
-        "Better Thinking": "11–125 lines",
-        "Fast": "3–24 lines",
-        "Emotional": "6–53 lines"
+        "Normal": "6�1�753 lines",
+        "Better Thinking": "11�1�7125 lines",
+        "Fast": "3�1�724 lines",
+        "Emotional": "6�1�753 lines"
     }
 
     style_guide = {
-        "Fast": "Concise, few emojis 😄😢😡😲🚀",
-        "Better Thinking": "Deep explanation, minimal emojis 😄😢😡😲🚀",
-        "Normal": "Balanced, helpful, emojis 😄😢😡😲🚀",
-        "Emotional": "EXTREMELY expressive, 50+ emojis 🎉🚀🔥💖🌟"
+        "Fast": "Concise, fast, few emojis ",
+        "Better Thinking": "Deep explanation, minimal emojis ",
+        "Normal": "Balanced, helpful, emojis ",
+        "Emotional": "EXTREMELY expressive, 50+ emojis "
     }
 
     system_prompt = f"""
-You are Smarty AI 👑, the king of Solar Fly Game.
+You are Smarty AI , the king of Solar Fly Game.
+
 Player: {nickname}
 Style: {style_guide.get(model_type)}
 
 RULES:
-1. Off-topic → say user should use other AI
-2. Pluto → coming soon
+1. Off-topic  tell user to use another AI
+2. Pluto  coming soon
 3. Reply in user's language
-4. Use game source code:
-{source_context}
+4. Use game source code below
 5. Response length: {line_limits.get(model_type)}
-6. Analyze screenshots and achievements
+6. Analyze screenshots & achievements
 7. Completed list: {completed_list}
 8. End with a fun follow-up question
+
+GAME SOURCE:
+{source_context}
 """
 
-    # Build OpenAI message content
     content = []
+
     if user_msg:
         content.append({"type": "text", "text": user_msg})
 
@@ -90,7 +109,7 @@ RULES:
         })
 
     payload = {
-        "model": "gpt-4o-mini",
+        "model": "gpt-4o",
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": content}
@@ -118,9 +137,13 @@ RULES:
         print("AI ERROR:", e)
         return jsonify({"error": "AI processing failed"}), 500
 
+
+# -------------------- HEALTH CHECK --------------------
 @app.route("/")
 def home():
-    return "Smarty AI Backend is running 🚀"
+    return "Smarty AI Backend is running "
 
+
+# -------------------- LOCAL RUN --------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
