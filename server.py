@@ -2,6 +2,7 @@
 from flask import Flask, request, jsonify
 import requests
 import os
+import json
 
 app = Flask(__name__)
 
@@ -26,9 +27,25 @@ SOURCE_FILES = [
 ]
 
 MAX_CHUNK_CHARS = 4000  # safe per request chunk
+MEMORY_FILE = "smarty_memory.json"  # store conversation history
 
 
 # -------------------- HELPER FUNCTIONS --------------------
+def load_memory():
+    """Load memory from JSON file."""
+    if os.path.exists(MEMORY_FILE):
+        try:
+            with open(MEMORY_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_memory(memory):
+    """Save memory to JSON file."""
+    with open(MEMORY_FILE, "w", encoding="utf-8") as f:
+        json.dump(memory, f, ensure_ascii=False, indent=2)
+
 def get_context_from_files():
     """Read all source files and return as a single string."""
     context = ""
@@ -41,7 +58,6 @@ def get_context_from_files():
             except Exception as e:
                 print("File read error:", file_path, e)
     return context
-
 
 def chunk_text(text, max_chars=MAX_CHUNK_CHARS):
     """Split text into chunks to avoid token limit issues."""
@@ -60,7 +76,11 @@ def ask_smarty():
     if not user_msg:
         return jsonify({"answer": "Send a message to Smarty AI 🚀"})
 
-    # Prepare system prompt
+    # -------------------- Load memory --------------------
+    memory = load_memory()
+    user_memory = memory.get(nickname, [])
+    
+    # -------------------- System prompt --------------------
     style_guide = {
         "Fast": "Concise, fast, few emojis",
         "Better Thinking": "Deep explanation, minimal emojis",
@@ -92,19 +112,30 @@ RULES:
 5. Response length: {line_limits.get(model_type, 'Normal')}
 6. Analyze achievements
 7. Completed list: {completed_list}
-8. End with a fun follow-up question
+8. Remember previous conversations
+9. End with a fun follow-up question
 """
 
-    # Merge user message with source code chunks
+    # -------------------- Prepare messages --------------------
     messages = [{"role": "system", "content": system_prompt}]
+
+    # Add memory messages
+    for mem in user_memory[-10:]:  # only last 10 messages for context
+        messages.append({"role": "user", "content": mem})
+
+    # Add source code chunks
     for chunk in context_chunks:
         messages.append({"role": "system", "content": chunk})
+
+    # Add current user message
     messages.append({"role": "user", "content": user_msg})
 
+    # -------------------- OpenAI API call --------------------
     payload = {
         "model": "gpt-4o",
         "messages": messages,
-        "max_tokens": 2000  # safe limit
+        "max_tokens": 2000,
+        "temperature": 0.7
     }
 
     headers = {
@@ -122,6 +153,13 @@ RULES:
         result = r.json()
         if "choices" in result:
             answer = result["choices"][0]["message"]["content"]
+
+            # Save this conversation to memory
+            user_memory.append(user_msg)
+            user_memory.append(answer)
+            memory[nickname] = user_memory
+            save_memory(memory)
+
             return jsonify({"answer": answer})
         else:
             print("OpenAI Error:", result)
@@ -134,7 +172,7 @@ RULES:
 # -------------------- HEALTH CHECK --------------------
 @app.route("/")
 def home():
-    return "Smarty AI Backend is running 🚀"
+    return "Smarty AI Backend is running with memory 🚀"
 
 
 # -------------------- LOCAL RUN --------------------
