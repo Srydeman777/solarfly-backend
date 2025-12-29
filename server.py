@@ -3,6 +3,7 @@ from flask import Flask, request, jsonify
 import requests
 import os
 import json
+import random
 
 app = Flask(__name__)
 
@@ -27,12 +28,15 @@ SOURCE_FILES = [
 ]
 
 MAX_CHUNK_CHARS = 4000  # safe per request chunk
-MEMORY_FILE = "smarty_memory.json"  # store conversation history
+MEMORY_FILE = "smarty_memory.json"  # persistent memory storage
 
+# -------------------- CHAT NAME GENERATOR --------------------
+def generate_chat_name(nickname="Player"):
+    topics = ["Space Quest", "Cosmic Flight", "Rocket Journey", "Planet Explorer", "Solar Adventure"]
+    return f"{nickname}'s {random.choice(topics)}"
 
-# -------------------- HELPER FUNCTIONS --------------------
+# -------------------- MEMORY HELPERS --------------------
 def load_memory():
-    """Load memory from JSON file."""
     if os.path.exists(MEMORY_FILE):
         try:
             with open(MEMORY_FILE, "r", encoding="utf-8") as f:
@@ -42,12 +46,11 @@ def load_memory():
     return {}
 
 def save_memory(memory):
-    """Save memory to JSON file."""
     with open(MEMORY_FILE, "w", encoding="utf-8") as f:
         json.dump(memory, f, ensure_ascii=False, indent=2)
 
+# -------------------- FILE CONTEXT --------------------
 def get_context_from_files():
-    """Read all source files and return as a single string."""
     context = ""
     for file_path in SOURCE_FILES:
         if os.path.exists(file_path):
@@ -60,27 +63,40 @@ def get_context_from_files():
     return context
 
 def chunk_text(text, max_chars=MAX_CHUNK_CHARS):
-    """Split text into chunks to avoid token limit issues."""
     return [text[i:i + max_chars] for i in range(0, len(text), max_chars)]
-
 
 # -------------------- MAIN API --------------------
 @app.route("/ask-smarty", methods=["POST"])
 def ask_smarty():
     data = request.json or {}
     user_msg = data.get("message", "").strip()
-    nickname = data.get("nickname", "Player")
+    nickname = data.get("nickname")
+    chat_name = data.get("chat_name")
     model_type = data.get("model", "Normal")
     completed_list = data.get("completed_list", [])
 
+    # **Nickname must come from website**
+    if not nickname:
+        return jsonify({"error": "Nickname is required from the website"}), 400
+
+    # Auto-generate chat name if none provided
+    if not chat_name:
+        chat_name = generate_chat_name(nickname)
+
+    memory_key = f"{nickname}_{chat_name}"
+
     if not user_msg:
-        return jsonify({"answer": "Send a message to Smarty AI 🚀"})
+        return jsonify({
+            "answer": "Send a message to Smarty AI 🚀",
+            "nickname": nickname,
+            "chat_name": chat_name
+        })
 
     # -------------------- Load memory --------------------
     memory = load_memory()
-    user_memory = memory.get(nickname, [])
-    
-    # -------------------- System prompt --------------------
+    user_memory = memory.get(memory_key, [])
+
+    # -------------------- Style and line limits --------------------
     style_guide = {
         "Fast": "Concise, fast, few emojis",
         "Better Thinking": "Deep explanation, minimal emojis",
@@ -95,6 +111,7 @@ def ask_smarty():
         "Emotional": "6-53 lines"
     }
 
+    # -------------------- Prepare system prompt --------------------
     source_context = get_context_from_files()
     context_chunks = chunk_text(source_context)
 
@@ -102,6 +119,7 @@ def ask_smarty():
 You are Smarty AI, the king of Solar Fly Game.
 
 Player: {nickname}
+Chat: {chat_name}
 Style: {style_guide.get(model_type, 'Normal')}
 
 RULES:
@@ -119,8 +137,8 @@ RULES:
     # -------------------- Prepare messages --------------------
     messages = [{"role": "system", "content": system_prompt}]
 
-    # Add memory messages
-    for mem in user_memory[-10:]:  # only last 10 messages for context
+    # Add last 10 messages from memory for context
+    for mem in user_memory[-10:]:
         messages.append({"role": "user", "content": mem})
 
     # Add source code chunks
@@ -154,13 +172,17 @@ RULES:
         if "choices" in result:
             answer = result["choices"][0]["message"]["content"]
 
-            # Save this conversation to memory
+            # Save message and answer to memory
             user_memory.append(user_msg)
             user_memory.append(answer)
-            memory[nickname] = user_memory
+            memory[memory_key] = user_memory
             save_memory(memory)
 
-            return jsonify({"answer": answer})
+            return jsonify({
+                "answer": answer,
+                "nickname": nickname,
+                "chat_name": chat_name
+            })
         else:
             print("OpenAI Error:", result)
             return jsonify({"error": "Invalid response from AI provider"}), 500
@@ -168,12 +190,10 @@ RULES:
         print("AI ERROR:", e)
         return jsonify({"error": "AI processing failed"}), 500
 
-
 # -------------------- HEALTH CHECK --------------------
 @app.route("/")
 def home():
-    return "Smarty AI Backend is running with memory 🚀"
-
+    return "Smarty AI Backend is running with memory & auto chat names 🚀"
 
 # -------------------- LOCAL RUN --------------------
 if __name__ == "__main__":
