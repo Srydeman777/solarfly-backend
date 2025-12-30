@@ -31,7 +31,7 @@ MAXCHUNKCHARS = 4000
 MEMORYFILE = "smartymemory.json"
 
 # -------------------- GLOBAL EMOJIS (LOCKED) --------------------
-EMOJIS = ["”9þ0", "•0ƒ1", "”9ý1", "”9Ñ0", "7¼3", "•0‹4", "•0—4", "”9Ñ5", "”9Ð5", "•0Î9", "”9²9"]
+EMOJIS = ["ðŸ˜Ž", "ðŸ˜­", "ðŸ˜…", "ðŸ‘Œ", "âœ…", "ðŸš€", "ðŸ›¸", "ðŸ‘‘", "ðŸ‘‡", "ðŸ¤£", "ðŸŒŸ"]
 
 # -------------------- CHAT NAME (FIRST MESSAGE ONLY) --------------------
 def generatechatname(nickname, first_message):
@@ -77,10 +77,10 @@ CREATOR_KEYWORDS = [
 ]
 
 CREATOR_VARIATIONS = [
-    "Built by Sryde Group, led by CEO Rihan Khan ”9Ñ5•0‹4",
-    "Solar Fly & Smarty AI come from Sryde Group ¡ª CEO Rihan Khan ”9²9",
-    "Created with passion by Sryde Group, CEO Rihan Khan •0—4",
-    "The mastermind is Sryde Group, CEO Rihan Khan ”9þ0"
+    "Built by Sryde Group, led by CEO Rihan Khan ðŸ‘‘ðŸš€",
+    "Solar Fly & Smarty AI come from Sryde Group â€” CEO Rihan Khan ðŸŒŸ",
+    "Created with passion by Sryde Group, CEO Rihan Khan ðŸ›¸",
+    "The mastermind is Sryde Group, CEO Rihan Khan ðŸ˜Ž"
 ]
 
 # -------------------- INTRO --------------------
@@ -88,8 +88,8 @@ INTRO_KEYWORDS = ["hello", "hi", "hey", "who are you", "what are you"]
 
 def random_intro(nickname):
     return (
-        f"Hey, {nickname}! ”9þ0 I¡¯m Smarty AI, your Solar Fly assistant ”9Ñ5 "
-        f"Ready to explore the universe together? •0‹4”9²9"
+        f"Hey, {nickname}! ðŸ˜Ž Iâ€™m Smarty AI, your Solar Fly assistant ðŸ‘‘ "
+        f"Ready to explore the universe together? ðŸš€ðŸŒŸ"
     )
 
 # -------------------- MAIN API --------------------
@@ -122,7 +122,7 @@ def ask_smarty():
 
     if not user_msg:
         return jsonify({
-            "answer": "Send a message to Smarty AI ”9Ð5•0‹4",
+            "answer": "Send a message to Smarty AI ðŸ‘‡ðŸš€",
             "nickname": nickname,
             "chatname": chatname
         })
@@ -155,17 +155,17 @@ def ask_smarty():
     }
 
     line_limits = {
-        "Fast": "3¨C24 lines",
-        "Normal": "6¨C53 lines",
-        "Better Thinking": "11¨C125 lines",
-        "Emotional": "6¨C53 lines"
+        "Fast": "3â€“24 lines",
+        "Normal": "6â€“53 lines",
+        "Better Thinking": "11â€“125 lines",
+        "Emotional": "6â€“53 lines"
     }
 
     sourcecontext = getcontextfrom_files()[:12000]
     contextchunks = chunktext(sourcecontext)
 
     system_prompt = f"""
-You are Smarty AI, the king of Solar Fly Game ”9Ñ5
+You are Smarty AI, the king of Solar Fly Game ðŸ‘‘
 
 Player: {nickname}
 Chat: {chatname}
@@ -173,14 +173,14 @@ Style: {style_guide.get(model_type, 'Normal')}
 
 STRICT EMOJI RULE:
 - Use ONLY these emojis:
-”9þ0 •0ƒ1 ”9ý1 ”9Ñ0 7¼3 •0‹4 •0—4 ”9Ñ5 ”9Ð5 •0Î9 ”9²9
+ðŸ˜Ž ðŸ˜­ ðŸ˜… ðŸ‘Œ âœ… ðŸš€ ðŸ›¸ ðŸ‘‘ ðŸ‘‡ ðŸ¤£ ðŸŒŸ
 - At least 1 emoji in EVERY reply
 - Emotional = many emojis
 - Fast = max 1 emoji
 
 RULES:
-1. Off-topic ¡ú suggest another AI
-2. Pluto ¡ú coming soon
+1. Off-topic â†’ suggest another AI
+2. Pluto â†’ coming soon
 3. Reply in user's language
 4. Use game source code
 5. Response length: {line_limits.get(model_type, 'Normal')}
@@ -240,7 +240,7 @@ RULES:
 # -------------------- HEALTH CHECK --------------------
 @app.route("/")
 def home():
-    return "Smarty AI Backend running ”9Ñ5•0‹4"
+    return "Smarty AI Backend running ðŸ‘‘ðŸš€"
 
 # -------------------- RUN --------------------
 if __name__ == "__main__":
