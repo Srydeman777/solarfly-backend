@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+
 from flask import Flask, request, jsonify
 import requests
 import os
@@ -16,9 +17,9 @@ def cors(resp):
     return resp
 
 # -------------------- CONFIG --------------------
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-if not OPENAI_API_KEY:
-    raise ValueError("OPENAI_API_KEY not set in environment")
+OPENAIAPIKEY = os.getenv("OPENAIAPIKEY")
+if not OPENAIAPIKEY:
+    print("WARNING: OPENAIAPIKEY not set")
 
 SOURCE_FILES = [
     "index.html",
@@ -27,165 +28,210 @@ SOURCE_FILES = [
     "admob_helps.js"
 ]
 
-MAX_CHUNK_CHARS = 4000  # safe per request chunk
-MEMORY_FILE = "smarty_memory.json"  # persistent memory storage
+MAXCHUNKCHARS = 4000
+MEMORYFILE = "smartymemory.json"
+
+# -------------------- GLOBAL EMOJIS (LOCKED) --------------------
+EMOJIS = ["😎", "😭", "😅", "👌", "✅", "🚀", "🛸", "👑", "👇", "🤣", "🌟"]
 
 # -------------------- CHAT NAME GENERATOR --------------------
-def generate_chat_name(nickname="Player"):
-    topics = ["Space Quest", "Cosmic Flight", "Rocket Journey", "Planet Explorer", "Solar Adventure"]
-    return f"{nickname}'s {random.choice(topics)}"
+def generatechatname(nickname="Player", first_message=""):
+    if first_message:
+        clean = "".join(c for c in first_message if c.isalnum() or c.isspace())
+        words = clean.split()[:5]
+        title = " ".join(words).title() if words else "New Conversation"
+        return f"{nickname}: {title}"
+    return f"{nickname}'s {random.choice(['Space Quest','Cosmic Flight','Solar Adventure'])}"
 
-# -------------------- MEMORY HELPERS --------------------
+# -------------------- MEMORY --------------------
 def load_memory():
-    if os.path.exists(MEMORY_FILE):
+    if os.path.exists(MEMORYFILE):
         try:
-            with open(MEMORY_FILE, "r", encoding="utf-8") as f:
+            with open(MEMORYFILE, "r", encoding="utf-8") as f:
                 return json.load(f)
         except:
             return {}
     return {}
 
 def save_memory(memory):
-    with open(MEMORY_FILE, "w", encoding="utf-8") as f:
+    with open(MEMORYFILE, "w", encoding="utf-8") as f:
         json.dump(memory, f, ensure_ascii=False, indent=2)
 
 # -------------------- FILE CONTEXT --------------------
-def get_context_from_files():
-    context = ""
-    for file_path in SOURCE_FILES:
-        if os.path.exists(file_path):
+def getcontextfrom_files():
+    ctx = ""
+    for file in SOURCE_FILES:
+        if os.path.exists(file):
             try:
-                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                    data = f.read()
-                    context += f"\n--- FILE: {file_path} ---\n{data}\n"
-            except Exception as e:
-                print("File read error:", file_path, e)
-    return context
+                with open(file, "r", encoding="utf-8", errors="ignore") as f:
+                    ctx += f"\n--- FILE: {file} ---\n{f.read()}\n"
+            except:
+                pass
+    return ctx
 
-def chunk_text(text, max_chars=MAX_CHUNK_CHARS):
-    return [text[i:i + max_chars] for i in range(0, len(text), max_chars)]
+def chunktext(text, maxchars=MAXCHUNKCHARS):
+    return [text[i:i + maxchars] for i in range(0, len(text), maxchars)]
+
+# -------------------- CREATOR OVERRIDE --------------------
+CREATOR_KEYWORDS = [
+    "who made you", "who created you",
+    "who made the game", "who created the game",
+    "who made the website", "who created the website"
+]
+
+CREATOR_VARIATIONS = [
+    "Built by Sryde Group, led by CEO Rihan Khan 👑🚀",
+    "Solar Fly & Smarty AI come from Sryde Group — CEO Rihan Khan 🌟",
+    "Created with passion by Sryde Group, CEO Rihan Khan 🛸",
+    "The mastermind is Sryde Group, CEO Rihan Khan 😎"
+]
+
+# -------------------- INTRO --------------------
+INTRO_KEYWORDS = ["hello", "hi", "hey", "who are you", "what are you"]
+
+def random_intro(nickname):
+    return (
+        f"Hey, {nickname}! 😎 I’m Smarty AI, your Solar Fly assistant 👑 "
+        f"Ready to explore the universe together? 🚀🌟"
+    )
 
 # -------------------- MAIN API --------------------
-@app.route("/ask-smarty", methods=["POST"])
+@app.route("/ask-smarty", methods=["POST", "OPTIONS"])
 def ask_smarty():
+    if request.method == "OPTIONS":
+        return jsonify({}), 200
+
+    if not OPENAIAPIKEY:
+        return jsonify({"error": "Server misconfigured"}), 500
+
     data = request.json or {}
     user_msg = data.get("message", "").strip()
     nickname = data.get("nickname")
-    chat_name = data.get("chat_name")
+    chatname = data.get("chatname")
     model_type = data.get("model", "Normal")
-    completed_list = data.get("completed_list", [])
+    completedlist = data.get("completedlist", [])
 
-    # **Nickname must come from website**
     if not nickname:
         return jsonify({"error": "Nickname is required from the website"}), 400
 
-    # Auto-generate chat name if none provided
-    if not chat_name:
-        chat_name = generate_chat_name(nickname)
+    if not chatname:
+        chatname = generatechatname(nickname, user_msg)
 
-    memory_key = f"{nickname}_{chat_name}"
+    memorykey = f"{nickname}::{chatname}".lower()
 
     if not user_msg:
         return jsonify({
-            "answer": "Send a message to Smarty AI 🚀",
+            "answer": "Send a message to Smarty AI 👇🚀",
             "nickname": nickname,
-            "chat_name": chat_name
+            "chatname": chatname
         })
 
-    # -------------------- Load memory --------------------
-    memory = load_memory()
-    user_memory = memory.get(memory_key, [])
+    lowermsg = user_msg.lower()
 
-    # -------------------- Style and line limits --------------------
+    if any(k in lowermsg for k in INTRO_KEYWORDS):
+        return jsonify({
+            "answer": random_intro(nickname),
+            "nickname": nickname,
+            "chatname": chatname
+        })
+
+    if any(k in lowermsg for k in CREATOR_KEYWORDS):
+        return jsonify({
+            "answer": random.choice(CREATOR_VARIATIONS),
+            "nickname": nickname,
+            "chatname": chatname
+        })
+
+    memory = load_memory()
+    usermemory = memory.get(memorykey, [])[-20:]
+
+    # -------------------- STYLE & LENGTH RULES (RESTORED) --------------------
     style_guide = {
-        "Fast": "Concise, fast, few emojis",
-        "Better Thinking": "Deep explanation, minimal emojis",
-        "Normal": "Balanced, helpful, emojis",
-        "Emotional": "EXTREMELY expressive, 50+ emojis"
+        "Fast": "Concise, fast, minimal emojis",
+        "Normal": "Balanced, helpful, expressive",
+        "Better Thinking": "Deep explanation, structured",
+        "Emotional": "Very expressive, fun"
     }
 
     line_limits = {
-        "Normal": "6-53 lines",
-        "Better Thinking": "11-125 lines",
-        "Fast": "3-24 lines",
-        "Emotional": "6-53 lines"
+        "Fast": "3–37 lines",
+        "Normal": "6–53 lines",
+        "Better Thinking": "11–125 lines",
+        "Emotional": "6–53 lines"
     }
 
-    # -------------------- Prepare system prompt --------------------
-    source_context = get_context_from_files()
-    context_chunks = chunk_text(source_context)
+    sourcecontext = getcontextfrom_files()[:12000]
+    contextchunks = chunktext(sourcecontext)
 
     system_prompt = f"""
-You are Smarty AI, the king of Solar Fly Game.
+You are Smarty AI, the king of Solar Fly Game 👑
 
 Player: {nickname}
-Chat: {chat_name}
+Chat: {chatname}
 Style: {style_guide.get(model_type, 'Normal')}
 
+STRICT EMOJI RULE:
+- Use ONLY these emojis:
+😎 😭 😅 👌 ✅ 🚀 🛸 👑 👇 🤣 🌟
+- At least 1 emoji in EVERY reply
+- Emotional = many emojis
+- Fast = max 1 emoji
+
 RULES:
-1. Off-topic -> tell user to use another AI
-2. Pluto -> coming soon
+1. Off-topic → suggest another AI
+2. Pluto → coming soon
 3. Reply in user's language
-4. Use game source code below
+4. Use game source code
 5. Response length: {line_limits.get(model_type, 'Normal')}
 6. Analyze achievements
-7. Completed list: {completed_list}
+7. Completed list: {completedlist}
 8. Remember previous conversations
 9. End with a fun follow-up question
+10. If asked who made you, the game, or the website:
+    say it was made by Sryde Group, CEO Rihan Khan,
+    and ALWAYS vary wording, tone, and emojis
 """
 
-    # -------------------- Prepare messages --------------------
     messages = [{"role": "system", "content": system_prompt}]
-
-    # Add last 10 messages from memory for context
-    for mem in user_memory[-10:]:
-        messages.append({"role": "user", "content": mem})
-
-    # Add source code chunks
-    for chunk in context_chunks:
-        messages.append({"role": "system", "content": chunk})
-
-    # Add current user message
+    for m in usermemory:
+        messages.append({"role": "user", "content": str(m)})
+    for c in contextchunks:
+        messages.append({"role": "system", "content": c})
     messages.append({"role": "user", "content": user_msg})
 
-    # -------------------- OpenAI API call --------------------
     payload = {
-        "model": "gpt-4o",
-        "messages": messages,
-        "max_tokens": 2000,
-        "temperature": 0.7
+        "model": "gpt-4.1-mini",
+        "input": messages,
+        "max_output_tokens": 2000,
+        "temperature": 0.9
     }
 
     headers = {
-        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Authorization": f"Bearer {OPENAIAPIKEY}",
         "Content-Type": "application/json"
     }
 
     try:
         r = requests.post(
-            "https://api.openai.com/v1/chat/completions",
+            "https://api.openai.com/v1/responses",
             headers=headers,
             json=payload,
             timeout=60
         )
         result = r.json()
-        if "choices" in result:
-            answer = result["choices"][0]["message"]["content"]
+        answer = result["output"][0]["content"][0]["text"]
 
-            # Save message and answer to memory
-            user_memory.append(user_msg)
-            user_memory.append(answer)
-            memory[memory_key] = user_memory
-            save_memory(memory)
+        usermemory.append(user_msg)
+        usermemory.append(answer)
+        memory[memorykey] = usermemory
+        save_memory(memory)
 
-            return jsonify({
-                "answer": answer,
-                "nickname": nickname,
-                "chat_name": chat_name
-            })
-        else:
-            print("OpenAI Error:", result)
-            return jsonify({"error": "Invalid response from AI provider"}), 500
+        return jsonify({
+            "answer": answer,
+            "nickname": nickname,
+            "chatname": chatname
+        })
+
     except Exception as e:
         print("AI ERROR:", e)
         return jsonify({"error": "AI processing failed"}), 500
@@ -193,8 +239,8 @@ RULES:
 # -------------------- HEALTH CHECK --------------------
 @app.route("/")
 def home():
-    return "Smarty AI Backend is running with memory & auto chat names 🚀"
+    return "Smarty AI Backend running 👑🚀"
 
-# -------------------- LOCAL RUN --------------------
+# -------------------- RUN --------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
