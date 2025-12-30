@@ -18,8 +18,7 @@ def cors(resp):
 
 # -------------------- CONFIG --------------------
 OPENAIAPIKEY = os.getenv("OPENAIAPIKEY")
-if not OPENAIAPIKEY:
-    print("WARNING: OPENAIAPIKEY not set")
+PORT = int(os.getenv("PORT", 5000))
 
 SOURCE_FILES = [
     "index.html",
@@ -34,14 +33,12 @@ MEMORYFILE = "smartymemory.json"
 # -------------------- GLOBAL EMOJIS (LOCKED) --------------------
 EMOJIS = ["😎", "😭", "😅", "👌", "✅", "🚀", "🛸", "👑", "👇", "🤣", "🌟"]
 
-# -------------------- CHAT NAME GENERATOR --------------------
-def generatechatname(nickname="Player", first_message=""):
-    if first_message:
-        clean = "".join(c for c in first_message if c.isalnum() or c.isspace())
-        words = clean.split()[:5]
-        title = " ".join(words).title() if words else "New Conversation"
-        return f"{nickname}: {title}"
-    return f"{nickname}'s {random.choice(['Space Quest','Cosmic Flight','Solar Adventure'])}"
+# -------------------- CHAT NAME (FIRST MESSAGE ONLY) --------------------
+def generatechatname(nickname, first_message):
+    clean = "".join(c for c in first_message if c.isalnum() or c.isspace())
+    words = clean.split()[:5]
+    title = " ".join(words).title() if words else "New Conversation"
+    return f"{nickname}: {title}"
 
 # -------------------- MEMORY --------------------
 def load_memory():
@@ -114,8 +111,12 @@ def ask_smarty():
     if not nickname:
         return jsonify({"error": "Nickname is required from the website"}), 400
 
-    if not chatname:
+    # ---- chat name generated ONLY from first question ----
+    if not chatname and user_msg:
         chatname = generatechatname(nickname, user_msg)
+
+    if not chatname:
+        chatname = f"{nickname}: New Conversation"
 
     memorykey = f"{nickname}::{chatname}".lower()
 
@@ -145,7 +146,7 @@ def ask_smarty():
     memory = load_memory()
     usermemory = memory.get(memorykey, [])[-20:]
 
-    # -------------------- STYLE & LENGTH RULES (RESTORED) --------------------
+    # -------------------- STYLE & LENGTH RULES (UNCHANGED) --------------------
     style_guide = {
         "Fast": "Concise, fast, minimal emojis",
         "Normal": "Balanced, helpful, expressive",
@@ -154,7 +155,7 @@ def ask_smarty():
     }
 
     line_limits = {
-        "Fast": "3–37 lines",
+        "Fast": "3–24 lines",
         "Normal": "6–53 lines",
         "Better Thinking": "11–125 lines",
         "Emotional": "6–53 lines"
@@ -243,4 +244,4 @@ def home():
 
 # -------------------- RUN --------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=PORT)
